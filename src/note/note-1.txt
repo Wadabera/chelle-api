@@ -1,0 +1,21 @@
+Client Request
+       ↓
+src/main.ts (boots app)
+       ↓
+src/app.module.ts (loads all modules)
+       ↓
+src/transactions/transactions.module.ts (owns /transactions)
+       ↓
+src/transactions/controllers/transactions.controller.ts (handles routes)
+       ↓
+src/transactions/dtos/*.dto.ts (validates input)
+       ↓
+src/transactions/services/transactions.service.ts (does the real work)
+       ↓ (maybe)
+src/transactions/schemas/*.schema.ts (saves to DB)
+       ↓ (maybe)
+src/users/services/users.service.ts (updates user balance)
+       ↑
+src/transactions/responses/*.dto.ts (shapes output)
+       ↑
+Back to Controller → Sends JSON response → Client
