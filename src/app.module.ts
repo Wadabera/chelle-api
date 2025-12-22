@@ -11,6 +11,7 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { config } from 'process';
 import { ConfigModule } from '@nestjs/config';
 import mongoose from 'mongoose';
+import { ScheduleModule } from '@nestjs/schedule';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import mongoose from 'mongoose';
     }),
     MongooseModule.forRoot('mongodb+srv://waadaa:091234@challa.pa74p3u.mongodb.net/chella_db?retryWrites=true&w=majority',
     ),
+    ScheduleModule.forRoot(),// !this is imported  external dependance in  task  module create task it self  or  do bagground job
 
     //process.enve is come from the  dependancy   wee instailled  it
 

@@ -8,7 +8,7 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
-      secretOrKey: process.env.JWT_SECRET || 'default_secret',//*********************unsolved */
+      secretOrKey: process.env.JWT_SECRET || 'default_secret', //*********************unsolved */
     });
   }
 
@@ -20,26 +20,20 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
   }
 }
 
+// /*FULL FLOW SUMMARY ABOUT JWT
 
+// 1.User opens app → registers → no token needed
+// 2.User logs in → sends username/password
+// 3.Backend checks password → correct → creates JWT token (signed with secret)
+// 4.Sends token back to frontend
+// 5.Frontend saves token
+// 6.User wants to see all users → calls GET /users/get-all
+// 7.Frontend automatically adds header: Authorization: Bearer <token>
+// 8.NestJS sees the @jwtAuthGuard() → asks JwtStrategy: "Is this token okay?"
+// 9.JwtStrategy:
+// 10.Takes token from header
+// 11.Verifies signature using same JWT_SECRET
+// 12.Checks if not expired
+// 13.Returns user info → becomes req.user
 
-
-
-
-
-/*FULL FLOW SUMMARY ABOUT JWT
-
-1.User opens app → registers → no token needed
-2.User logs in → sends username/password
-3.Backend checks password → correct → creates JWT token (signed with secret)
-4.Sends token back to frontend
-5.Frontend saves token
-6.User wants to see all users → calls GET /users/get-all
-7.Frontend automatically adds header: Authorization: Bearer <token>
-8.NestJS sees the @jwtAuthGuard() → asks JwtStrategy: "Is this token okay?"
-9.JwtStrategy:
-10.Takes token from header
-11.Verifies signature using same JWT_SECRET
-12.Checks if not expired
-13.Returns user info → becomes req.user
-
-14.Controller runs → req.user has user info → success!*/
+// 14.Controller runs → req.user has user info → success!*/

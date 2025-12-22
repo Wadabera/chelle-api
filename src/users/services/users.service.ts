@@ -1,6 +1,12 @@
+import { TaskService } from './../../tasks/services/tasks.service';
 import { UserResponse } from './../responses/users.response';
-import { BadRequestException, Injectable, Patch } from '@nestjs/common';
-import { createUserDto, updateUserDto, userLoginDto } from '../dtos/users.dto';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+  Patch,
+} from '@nestjs/common';
+import { CreateUserDto, UpdateUserDto, UserLoginDto } from '../dtos/users.dto';
 import { User } from '../schemas/users.schema';
 import { Model } from 'mongoose';
 import * as bcrypt from 'bcrypt';
@@ -9,121 +15,123 @@ import { CommonUtils } from '../../commons/utilits';
 
 import { access } from 'fs';
 import { response } from 'express';
+import { ReferralService } from 'src/referrals/services/referrals.sevice';
 
 @Injectable()
-export class userService {
+export class UserService {
   constructor(
-    @InjectModel(User.name) //NestJS, please give me the Mongoose model for the 'User' collection.
-    private readonly userModel: Model<User>, //userModel = the table for Users inside MongoDB
+    @InjectModel(User.name) private readonly userModel: Model<User>,
+
+    private readonly referralService: ReferralService,  // user service know  this  model via user module
+    //userModel = the table for Users inside MongoDB
+                                                        
   ) {}
 
   // REGISTER USER***************************************************************************************
-  async registerUser(createUserDto: createUserDto) {
-    //. all logics will  be done here
-
-    //1.check if user exists
+  async registerUser(createUserDto: CreateUserDto) {
+    console.log('COming request body', createUserDto);
+    //1. check if user exists with provided username
     const existingName = await this.userModel.findOne({
       username: createUserDto.username.toLowerCase(),
     });
-
-    console.log('existing name', existingName);
+    console.log('Existing name:', existingName);
 
     if (existingName) {
-      throw new Error('Username already exists');
+      throw new BadRequestException('User already exists with this username.');
     }
 
-    //2.hash password
-    const hashedpwd = await bcrypt.hash(createUserDto.password, 10);
+    let referringUser = null as any;
 
-    //3.generate referral
-    const referralCode = CommonUtils.generateReferralCode();
-
-    //4. update referring user if exists
     if (createUserDto.referredBy) {
-      const referringUser = await this.userModel.findOne({
+      referringUser = await this.userModel.findOne({
         referralCode: createUserDto.referredBy,
       });
 
-      if (referringUser) {
-        await this.userModel.findByIdAndUpdate(referringUser._id, {
-          totalEarned: referringUser.totalEarned + 20,
-          amount: referringUser.amount + 20,
-          totalReferred: referringUser.totalReferred + 1,
-        });
+      if (!referringUser) {
+        throw new BadRequestException('Invalid referral code.');
       }
     }
 
-    //5.prepare an instance to save on db
-    const sevedUser = new this.userModel({
+    //2. hash password
+    const hashedPwd = await bcrypt.hash(createUserDto.password, 10);
+
+    //3. generate refferral
+    const referralCode = CommonUtils.generateReferralCode();
+
+    //4. prepare an instance to save on db
+    const newUser = new this.userModel({
       fullname: createUserDto.fullname,
-      username: createUserDto.username.toLowerCase(),
-      password: hashedpwd,
-      referredBy: createUserDto.referredBy || null,
+      username: createUserDto.username,
+      password: hashedPwd,
       referralCode: referralCode,
-      amount: 0,
-      totalEarned: 0,
+      referredBy: createUserDto.referredBy || null,
+      amount: 100,
+      totalEarned: 100,
       totalReferred: 0,
     });
 
-    //6.save to db
-    await sevedUser.save();
+    //5. save to db
+    const savedUser = await newUser.save();
 
-    //7.map to response
+    //! We will implement a code to increase amount for referering users
+    if (referringUser) {
+      await this.referralService.createReferralTracking(
+        referringUser._id.toString(),
+        savedUser._id.toString(),
+      );
+
+      await this.userModel.findByIdAndUpdate(referringUser._id, {
+        totalEarned: referringUser.totalEarned + 20,
+        amount: referringUser.amount + 20,
+        totalReferred: referringUser.totalReferred + 1,
+      });
+    }
+
+    //6. map to our user response interceptor
     const userResponse: UserResponse = {
-      id: sevedUser._id.toString(),
-      fullname: sevedUser.fullname,
-      username: sevedUser.username,
-      referralCode: sevedUser.referralCode,
-      referredBy: sevedUser.referredBy,
-      amount: sevedUser.amount,
-      totalEarned: sevedUser.totalEarned,
-      totalReferred: sevedUser.totalReferred,
+      id: savedUser._id.toString(),
+      fullname: savedUser.fullname,
+      username: savedUser.username,
+      referralCode: savedUser.referralCode,
+      referredBy: savedUser.referredBy,
+      amount: savedUser.amount,
+      totalEarned: savedUser.totalEarned,
+      totalReferred: savedUser.totalReferred,
     };
 
-    //8.return response
+    // send back response
     return userResponse;
   }
-  //UPDATE THE USER SERVICE************************************************************************************
-  async updateUser(id: string, updateUserDto: updateUserDto) {
-    //chack user table
+
+  //UPDATE  USERS PROFILES***********************************************************************
+
+  async UpdateUserDto(id: string, updateUserDto: UpdateUserDto) {
+    // 1️ Check if user exists
     const user = await this.userModel.findById(id);
+
     if (!user) {
-      {
-        throw new BadRequestException('user dos not exist');
-      }
+      throw new NotFoundException('User not found');
     }
-    //preparing thing
+
+    // 2️ Update only the fields that are sent
     if (updateUserDto.fullname) {
       user.fullname = updateUserDto.fullname;
     }
-    //check if username is exist with provided user name
+
     if (updateUserDto.username) {
-      const existUsername = await this.userModel.findOne({
-        username: updateUserDto.username.toLowerCase(),
-      });
-      if (existUsername && existUsername.username !== user.username) {
-        throw new BadRequestException('username already exist');
-      }
-      user.username = updateUserDto.username.toLowerCase();
+      user.username = updateUserDto.username;
     }
 
-    //update username
-    //save to db
-    const updatedUser = await user.save();
-    //map to response
-    const userResponse: UserResponse = {
-      id: updatedUser._id.toString(),
-      fullname: updatedUser.fullname,
-      username: updatedUser.username,
-      referralCode: updatedUser.referralCode,
-      referredBy: updatedUser.referredBy,
-      amount: updatedUser.amount,
-      totalEarned: updatedUser.totalEarned,
-      totalReferred: updatedUser.totalReferred,
+    // 3️ Save changes to database
+    user.save();
+
+    // 4️ Return updated user
+    return {
+      message: 'Profile updated successfully',
+      user,
     };
-    //return response
-    return userResponse;
   }
+
   //GET SINGLE PROFILE*****************************************************************************************
   async getUserProfile(id: string) {
     const user = await this.userModel.findById(id);
@@ -143,7 +151,7 @@ export class userService {
     };
     return userResponse;
   }
-  //GET ALL USERS PROFILES*************************************************************************
+  //GET ALL USERS PROFILES***********************************************************************************
   async getAllUsers() {
     const users = await this.userModel.find();
     if (!users || users.length == 0) {
@@ -162,10 +170,10 @@ export class userService {
     return userResponse;
   }
 
-  //2.AUTHOUNTHICATION********************************************************************************
+  //2.AUTHOUNTHICATION**************************************************************************************
 
   //login service ised to genatre the token
-  async userLogin(userLoginDto: userLoginDto) {
+  async userLogin(userLoginDto: UserLoginDto) {
     //check  user existz
     const user = await this.userModel.findOne({
       username: userLoginDto.username.toLowerCase(),
@@ -194,7 +202,7 @@ export class userService {
       accestoken: genaratedToken,
     };
   }
-  //FETCHING  THE REFEREL CODE  FOR THE  USES***********************************
+  //FETCHING  THE REFEREL CODE  FOR THE  USES*****************************************************************
   async getMyreferralCode(currentUser) {
     const user = await this.userModel.findById(currentUser.id);
     if (!user) {
@@ -204,5 +212,14 @@ export class userService {
       referralCode: user.referralCode,
     };
     return userResponse;
+  }
+  //rewward
+  async addTaskRewardToUser(currentUserId: string, rewardAmount: number) {
+    const user = await this.userModel.findById(currentUserId);
+    if (!user) {
+      throw new BadRequestException('user is not found');
+    }
+    user.totalEarned += rewardAmount;
+    await user.save();
   }
 }

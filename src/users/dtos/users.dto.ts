@@ -1,7 +1,7 @@
 import { IsString, IsOptional } from 'class-validator';
 
 // Register DTO
-export class createUserDto {
+export class CreateUserDto {
   @IsString()
   fullname: string;
 
@@ -20,7 +20,7 @@ export class createUserDto {
   referredBy: string;
 }
 
-export class updateUserDto {
+export class UpdateUserDto {
   @IsString()
   @IsOptional()
   fullname: string;
@@ -29,7 +29,7 @@ export class updateUserDto {
   @IsOptional()
   username: string;
 }
-export class userLoginDto {
+export class UserLoginDto {
   @IsString()
   @IsOptional()
   password: string;
