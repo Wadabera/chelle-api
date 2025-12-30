@@ -1,3 +1,4 @@
+import { Transaction } from './../../transactions/schemas/transactions.schema';
 import { TaskService } from './../../tasks/services/tasks.service';
 import { UserResponse } from './../responses/users.response';
 import {
@@ -16,20 +17,20 @@ import { CommonUtils } from '../../commons/utilits';
 import { access } from 'fs';
 import { response } from 'express';
 import { ReferralService } from 'src/referrals/services/referrals.sevice';
+import { send } from 'process';
 
 @Injectable()
 export class UserService {
   constructor(
     @InjectModel(User.name) private readonly userModel: Model<User>,
 
-    private readonly referralService: ReferralService,  // user service know  this  model via user module
+    private readonly referralService: ReferralService, // user service know  this  model via user module
     //userModel = the table for Users inside MongoDB
-                                                        
   ) {}
 
   // REGISTER USER***************************************************************************************
   async registerUser(createUserDto: CreateUserDto) {
-    console.log('COming request body', createUserDto);
+    console.log('Coming request body', createUserDto);
     //1. check if user exists with provided username
     const existingName = await this.userModel.findOne({
       username: createUserDto.username.toLowerCase(),
@@ -174,7 +175,7 @@ export class UserService {
 
   //login service ised to genatre the token
   async userLogin(userLoginDto: UserLoginDto) {
-    //check  user existz
+    //check  user exist
     const user = await this.userModel.findOne({
       username: userLoginDto.username.toLowerCase(),
     });
@@ -213,7 +214,7 @@ export class UserService {
     };
     return userResponse;
   }
-  //rewward
+  //!reward
   async addTaskRewardToUser(currentUserId: string, rewardAmount: number) {
     const user = await this.userModel.findById(currentUserId);
     if (!user) {

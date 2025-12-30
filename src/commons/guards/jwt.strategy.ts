@@ -13,10 +13,10 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
   }
 
   async validate(payload: any) {
-    const { exp, iat, nbf, sub, ...rest } = payload;
+    const { exp, iat, nbf, sub, ...userInfo } = payload;
     console.log('expire time', exp);
-    console.log('user info', rest);
-    return rest; //   attaches to req.user
+    console.log('user info', userInfo);
+    return userInfo; //   attaches to req.user
   }
 }
 
