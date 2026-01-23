@@ -5,8 +5,8 @@ import {
   ExchangeRateSchema,
 } from './schemas/exchange_rates.schema';
 import { MongooseModule, Schema } from '@nestjs/mongoose';
-import { ExchangeRateServices } from './services/exchanges.service';
-import { ExchangeRatesController } from './controllers/exchanges.conroller';
+import { ExchangeRateService} from './services/exchanges.service';
+import { ExchangeRateController } from './controllers/exchanges.conroller';
 
 @Module({
   imports: [
@@ -15,7 +15,7 @@ import { ExchangeRatesController } from './controllers/exchanges.conroller';
       { name: ExchangeRate.name, schema: ExchangeRateSchema },
     ]),
   ],
-  controllers: [ExchangeRatesController],
-  providers: [ExchangeRateServices],
+  controllers: [ExchangeRateController],
+  providers: [ExchangeRateService],
 })
 export class ExchangeRatesModule {}

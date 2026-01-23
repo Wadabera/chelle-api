@@ -6,18 +6,18 @@ import { JwtStrategy } from 'src/commons/guards/jwt.strategy';
 
 @Controller('referrals')
 export class ReferralsController {
-  constructor(private readonly ReferralService: ReferralService) {}
+  constructor(private readonly referralService: ReferralService) {}
 //purpose: return the user who referred the current user********************************
   @jwtAuthGuard()
   @Get('my-referrer')
   async getMyreferrer(@Req() req: any) {
-    return await this.ReferralService.getMyreferrer(req.user);
+    return await this.referralService.getMyreferrer(req.user);
     console.log(req.user);
   }
   @jwtAuthGuard()
 @Get('my-referred-users')
 async getMyreferredUsers(@Req() req: any) {
-  return await this.ReferralService.getMyRefferedUsers(req.user);
+  return await this.referralService.getMyRefferedUsers(req.user);
 }
 
 }

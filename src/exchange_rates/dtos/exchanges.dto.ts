@@ -1,12 +1,15 @@
-import { IsNumber, IsString } from 'class-validator';
+import { IsEnum, IsNotEmpty, IsNumber, IsString } from "class-validator";
 
-export class ConvertDto {
+export class RateConversionDto {
   @IsNumber()
+  @IsNotEmpty()
   amount: number;
 
+  @IsEnum(["ETB", "USD", "EUR"], { message: "Currency must be one of the ff: ETB, USD, EUR" })
   @IsString()
-  from: string;
+  fromCurrency: string;
 
+  @IsEnum(["ETB", "USD", "EUR"], { message: "Currency must be one of the ff: ETB, USD, EUR" })
   @IsString()
-  to: string;
+  toCurrency: string;
 }

@@ -1,89 +1,110 @@
-import { HttpService } from '@nestjs/axios';
-import { Injectable, BadRequestException } from '@nestjs/common';
-import {
-  ExchangeRate,
-  ExchangeRateDocument,
-} from '../schemas/exchange_rates.schema';
-import { Model } from 'mongoose';
+import { response } from 'express';
 import { InjectModel } from '@nestjs/mongoose';
-import { firstValueFrom } from 'rxjs';
+import { BadRequestException, Injectable } from '@nestjs/common';
+import { ExchangeRate } from '../schemas/exchange_rates.schema';
+import { HttpService } from '@nestjs/axios';
+import { Cron, CronExpression } from '@nestjs/schedule';
+import { Model } from 'mongoose';
+import { throwError } from 'rxjs';
+import { RateConversionDto } from '../dtos/exchanges.dto';
+import { RateResponse } from '../responses/exchnages.response';
 
 @Injectable()
-export class ExchangeRateServices {
-  private readonly allowedCurrencies = ['ETB', 'USD', 'EUR']; // ✅ Allowed currencies
-
+export class ExchangeRateService {
   constructor(
-    private readonly httpService: HttpService,
     @InjectModel(ExchangeRate.name)
-    private readonly rateModel: Model<ExchangeRateDocument>,
+    readonly rateModel: Model<ExchangeRate>,
+    private readonly httpService: HttpService,
   ) {}
-
-  // Fetch daily rates from external API and save in DB
-  async fetchDailyRates(): Promise<any> {
+  @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT)
+  async sendRequestAndUpdateRate() {
     try {
-      const response = await firstValueFrom(
-        this.httpService.get('https://api.exchangerate-api.com/v4/latest/ETB'),
-      );
-
-      const data = response.data;
-
-      // Keep only allowed currencies
-      const filteredRates = Object.fromEntries(
-        Object.entries(data.rates).filter(([key]) =>
-          this.allowedCurrencies.includes(key),
-        ),
-      );
-
-      // Save in DB
-      const newRate = new this.rateModel({
-        baseCurrency: data.base,
-        rates: new Map(Object.entries(filteredRates)), // convert filtered object to Map
+      //check  today exchange rate  already exist
+      const today = new Date().toISOString().split('T')[0];
+      const existingRate = await this.rateModel.findOne({
+        exchangeDate: today,
       });
-      await newRate.save();
+      if (existingRate) {
+        console.log(" today's  echange rate already exist");
+        return;
+      }
+      //  if not  exist lets  send  request
+      const response = await this.httpService.axiosRef.get(
+        `${process.env.EXCHANGE_RATE_API_URL}`,
+      );
+      if (response.data.result === 'success') {
+        const etbToUsd = response.data.conversion_rates.USD;
+        const etbToEur = response.data.conversion_rates.EUR;
+        const etb = response.data.conversion_rates.ETB;
 
-      return { base: data.base, rates: filteredRates };
+        //if not create  new rate for today save on database
+        const newRate = await this.rateModel.create({
+          usdRate: etbToUsd,
+          eurRate: etbToEur,
+          etbRate: etb,
+          exchangeDate: today,
+        });
+      }
     } catch (error) {
-      throw new BadRequestException('Failed to fetch daily rates');
+      console.log(error);
+      throw new error('faild to fetch exchange rate');
     }
   }
-
-  // Convert currency using latest rate
-  async convertCurrency(
-    amount: number,
-    from: string,
-    to: string,
-  ): Promise<number> {
-    // ✅ Check if currency is allowed
-    if (
-      !this.allowedCurrencies.includes(from) ||
-      !this.allowedCurrencies.includes(to)
-    ) {
-      throw new BadRequestException(
-        `Currency must be one of: ${this.allowedCurrencies.join(', ')}`,
-      );
+  async getTodayExchangeRate() {
+    const today = new Date().toISOString().split('T')[0];
+    const todayRate = await this.rateModel.findOne({
+    exchangeDate: today
+    });
+    if(!todayRate) {
+    throw new BadRequestException("No rates available for today.")
     }
-
-    // Get the latest rate from DB
-    const latestRate = await this.rateModel.findOne().sort({ createdAt: -1 });
-
-    if (!latestRate) {
-      throw new BadRequestException('Exchange rate not found');
+    const response: RateResponse = {
+    id: todayRate.id.toString(),
+    usdRate: todayRate.usdRate,
+    eurRate: todayRate.eurRate,
+    etbRate: todayRate.etbRate,
+    exchangeDate: todayRate.exchangeDate
     }
-
-    // Access Map values using .get()
-    const rateFrom = latestRate.rates.get(from);
-    const rateTo = latestRate.rates.get(to);
-
-    if (rateFrom === undefined || rateTo === undefined) {
-      throw new BadRequestException(
-        `Rate for currency ${from} or ${to} not found`,
-      );
+    return response;
     }
+  // service for currency conversion
+async currencyConversion(rateConversionDto: RateConversionDto) {
+  // 1. get today's exchange rate
+  const todayRate = await this.getTodayExchangeRate();
 
-    // Conversion formula
-    const baseAmount = amount / rateFrom; // convert to base currency
-    const convertedAmount = baseAmount * rateTo;
+  let convertedAmount: number;
 
-    return Number(convertedAmount.toFixed(2)); // round to 2 decimal places
+  // 2. same currency → no conversion
+  if (rateConversionDto.fromCurrency === rateConversionDto.toCurrency) {
+    convertedAmount = rateConversionDto.amount;
   }
+
+  // 3. ETB → USD
+  else if (
+    rateConversionDto.fromCurrency === 'ETB' &&
+    rateConversionDto.toCurrency === 'USD'
+  ) {
+    convertedAmount = rateConversionDto.amount * todayRate.usdRate;
+  }
+
+  // 4. ETB → EUR
+  else if (
+    rateConversionDto.fromCurrency === 'ETB' &&
+    rateConversionDto.toCurrency === 'EUR'
+  ) {
+    convertedAmount = rateConversionDto.amount * todayRate.eurRate;
+  }
+
+  // 5. unsupported conversion
+  else {
+    throw new BadRequestException('Unsupported currency conversion');
+  }
+
+  return {
+    fromCurrency: rateConversionDto.fromCurrency,
+    toCurrency: rateConversionDto.toCurrency,
+    amount: convertedAmount,
+  };
+}
+
 }

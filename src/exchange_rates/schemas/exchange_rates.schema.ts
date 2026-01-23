@@ -1,15 +1,19 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document } from 'mongoose';
 
-export type ExchangeRateDocument = ExchangeRate & Document;
-
-@Schema({ timestamps: true })
-export class ExchangeRate {
-  @Prop({ required: true })
+@Schema()
+export class ExchangeRate extends Document {
+  @Prop({ required: true, default: 'ETB' })
   baseCurrency: string;
+  @Prop({ required: true })
+  usdRate: number;
+  @Prop({ required: true })
+  eurRate: number;
 
-  @Prop({ type: Map, of: Number, required: true })
-  rates: Map<string, number>;
+  @Prop({ required: true })
+  etbRate: number;
+  @Prop({ required: true })
+  exchangeDate: Date;
 }
 
 export const ExchangeRateSchema = SchemaFactory.createForClass(ExchangeRate);

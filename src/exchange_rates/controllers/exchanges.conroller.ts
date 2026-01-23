@@ -1,18 +1,19 @@
-import { ConvertDto } from '../dtos/exchanges.dto';
-import { ExchangeRateServices } from './../services/exchanges.service';
+import { RateConversionDto } from '../dtos/exchanges.dto';
+import { ExchangeRateService } from '../services/exchanges.service';
+import { ExchangeRate } from './../schemas/exchange_rates.schema';
 import { Body, Controller, Get, Post } from '@nestjs/common';
 
-@Controller('rates')
-export class ExchangeRatesController {
-  constructor(private readonly exchangeRateServices: ExchangeRateServices) {}
-  @Get('daily-rate')
-  getDailyRates() {
-    return this.exchangeRateServices.fetchDailyRates();
+@Controller('exchange-rate')
+export class ExchangeRateController {
+  constructor(private readonly exchangeRateService: ExchangeRateService) {}
+  @Get('today')
+  async getTodayRate() {
+    return this.exchangeRateService.getTodayExchangeRate();
   }
- @Post('conversion')
-async convert(@Body() body: ConvertDto) {
-  const { amount, from, to } = body;
-  return this.exchangeRateServices.convertCurrency(amount, from, to);
+  @Post('conversion')
+async currencyConversion(@Body() dto: RateConversionDto) {
+  const result = await this.exchangeRateService.currencyConversion(dto);
+  return result;
 }
 
 }
